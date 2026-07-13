@@ -7,26 +7,23 @@ using static JoltPhysicsSharp.JoltApi;
 
 namespace JoltPhysicsSharp;
 
-public sealed class CharacterVirtual : CharacterBase
+public sealed partial class CharacterVirtual : CharacterBase
 {
     private static readonly JPH_CharacterContactListener_Procs _procs;
     private readonly nint _listenerHandle;
     private readonly nint _listenerUserData;
 
     public delegate void AdjustBodyVelocityHandler(CharacterVirtual character, in Body body2, ref Vector3 linearVelocity, ref Vector3 angularVelocity);
-    public delegate bool ContactValidateHandler(CharacterVirtual character, in BodyID bodyID2, SubShapeID subShapeID2);
-    public delegate bool CharacterContactValidateHandler(CharacterVirtual character, CharacterVirtual otherCharacter, SubShapeID subShapeID2);
+    public delegate bool ContactValidateHandler(CharacterVirtual character, in CharacterContact contact);
+    public delegate bool CharacterContactValidateHandler(CharacterVirtual character, in CharacterContact contact);
 
     /// <summary>
     /// Callback called when contact is added or persisted.
     /// </summary>
     /// <param name="character">Character that is being solved</param>
-    /// <param name="bodyID2">Body ID of body that is being hit</param>
-    /// <param name="subShapeID2">Sub shape ID of shape that is being hit</param>
-    /// <param name="contactPosition">World space contact position</param>
-    /// <param name="contactNormal">World space contact normal</param>
+    /// <param name="contact">Contact information</param>
     /// <param name="settings">Settings returned by the contact callback to indicate how the character should behave</param>
-    public delegate void ContactAddedPersistedHandler(CharacterVirtual character, in BodyID bodyID2, SubShapeID subShapeID2, in RVector3 contactPosition, in Vector3 contactNormal, ref CharacterContactSettings settings);
+    public delegate void ContactAddedPersistedHandler(CharacterVirtual character, in CharacterContact contact, ref CharacterContactSettings settings);
 
     /// <summary>
     /// Callback called whenever the character loses contact with a body.
@@ -36,7 +33,7 @@ public sealed class CharacterVirtual : CharacterBase
     /// <param name="subShapeID2">Sub shape ID of shape that is being hit</param>
     public delegate void ContactRemovedHandler(CharacterVirtual character, in BodyID bodyID2, SubShapeID subShapeID2);
 
-    public delegate void CharacterContactAddedPersistedHandler(CharacterVirtual character, CharacterVirtual otherCharacter, SubShapeID subShapeID2, in RVector3 contactPosition, in Vector3 contactNormal, ref CharacterContactSettings settings);
+    public delegate void CharacterContactAddedPersistedHandler(CharacterVirtual character, in CharacterContact contact, ref CharacterContactSettings settings);
     public delegate void CharacterContactRemovedHandler(CharacterVirtual character, CharacterID otherCharacterID, SubShapeID subShapeID2);
 
     /// <summary>
@@ -459,48 +456,48 @@ public sealed class CharacterVirtual : CharacterBase
         return JPH_CharacterVirtual_GetNumActiveContacts(Handle);
     }
 
-    public unsafe Contact GetActiveContact(int index)
+    public unsafe CharacterContact GetActiveContact(int index)
     {
-        JPH_CharacterVirtualContact native = default;
+        JPH_CharacterContact native = default;
         JPH_CharacterVirtual_GetActiveContact(Handle, index, &native);
 
-        Contact result = new();
+        CharacterContact result = new();
         result.FromNative(&native);
         return result;
     }
 
-    public unsafe void GetActiveContact(int index, out Contact contact)
+    public unsafe void GetActiveContact(int index, out CharacterContact contact)
     {
-        JPH_CharacterVirtualContact native = default;
+        JPH_CharacterContact native = default;
         JPH_CharacterVirtual_GetActiveContact(Handle, index, &native);
 
         contact = default;
         contact.FromNative(&native);
     }
 
-    public unsafe void GetActiveContacts(Contact[] contacts)
+    public unsafe void GetActiveContacts(CharacterContact[] contacts)
     {
         for (int i = 0; i < contacts.Length; i++)
         {
-            JPH_CharacterVirtualContact native = default;
+            JPH_CharacterContact native = default;
             JPH_CharacterVirtual_GetActiveContact(Handle, i, &native);
 
             contacts[i].FromNative(&native);
         }
     }
 
-    public unsafe void GetActiveContacts(Span<Contact> contacts)
+    public unsafe void GetActiveContacts(Span<CharacterContact> contacts)
     {
         for (int i = 0; i < contacts.Length; i++)
         {
-            JPH_CharacterVirtualContact native = default;
+            JPH_CharacterContact native = default;
             JPH_CharacterVirtual_GetActiveContact(Handle, i, &native);
 
             contacts[i].FromNative(&native);
         }
     }
 
-    public IEnumerable<Contact> GetActiveContacts()
+    public IEnumerable<CharacterContact> GetActiveContacts()
     {
         int count = GetNumActiveContacts();
         for (int i = 0; i < count; i++)
@@ -529,51 +526,6 @@ public sealed class CharacterVirtual : CharacterBase
         return GetOrAddObject(handle, (nint h) => new CharacterVirtual(h, false));
     }
 
-
-    public struct Contact
-    {
-        public ulong Hash;
-        public BodyID BodyB;
-        public CharacterID CharacterIDB;
-        public SubShapeID SubShapeIDB;
-        public Vector3 Position;
-        public Vector3 LinearVelocity;
-        public Vector3 ContactNormal;
-        public Vector3 SurfaceNormal;
-        public float Distance;
-        public float Fraction;
-        public MotionType MotionTypeB;
-        public bool IsSensorB;
-        public CharacterVirtual? CharacterB;
-        public ulong UserData;
-        public PhysicsMaterial? Material;
-        public bool HadCollision;
-        public bool WasDiscarded;
-        public bool CanPushCharacter;
-
-        internal unsafe void FromNative(JPH_CharacterVirtualContact* native)
-        {
-            Hash = native->hash;
-            BodyB = native->bodyB;
-            CharacterIDB = native->characterIDB;
-            SubShapeIDB = native->subShapeIDB;
-            Position = native->position;
-            LinearVelocity = native->linearVelocity;
-            ContactNormal = native->contactNormal;
-            SurfaceNormal = native->surfaceNormal;
-            Distance = native->distance;
-            Fraction = native->fraction;
-            MotionTypeB = native->motionTypeB;
-            IsSensorB = native->isSensorB;
-            CharacterB = CharacterVirtual.GetObject(native->characterB);
-            UserData = native->userData;
-            Material = PhysicsMaterial.GetObject(native->material);
-            HadCollision = native->hadCollision;
-            WasDiscarded = native->wasDiscarded;
-            CanPushCharacter = native->canPushCharacter;
-        }
-    }
-
     #region CharacterContactListener
     [UnmanagedCallersOnly]
     private static unsafe void OnAdjustBodyVelocityCallback(nint context,
@@ -592,67 +544,69 @@ public sealed class CharacterVirtual : CharacterBase
     }
 
     [UnmanagedCallersOnly]
-    private static unsafe Bool8 OnContactValidateCallback(nint context, nint character, BodyID bodyID2, SubShapeID subShapeID2)
+    private static unsafe Bool8 OnContactValidateCallback(nint context, nint character, JPH_CharacterContact* pContact)
     {
         CharacterVirtual listener = DelegateProxies.GetUserData<CharacterVirtual>(context, out _);
 
         if (listener.OnContactValidate != null)
         {
-            return listener.OnContactValidate(listener, bodyID2, subShapeID2);
+            CharacterContact contact = default;
+            contact.FromNative(pContact);
+            return listener.OnContactValidate(listener, contact);
         }
 
         return true;
     }
 
     [UnmanagedCallersOnly]
-    private static unsafe Bool8 OnCharacterContactValidateCallback(nint context, nint character, nint otherCharacter, SubShapeID subShapeID2)
+    private static unsafe Bool8 OnCharacterContactValidateCallback(nint context, nint character, JPH_CharacterContact* pContact)
     {
         CharacterVirtual listener = DelegateProxies.GetUserData<CharacterVirtual>(context, out _);
 
         if (listener.OnCharacterContactValidate != null)
         {
-            return listener.OnCharacterContactValidate(listener, GetObject(otherCharacter)!, subShapeID2);
+            CharacterContact contact = default;
+            contact.FromNative(pContact);
+            return listener.OnCharacterContactValidate(listener, contact);
         }
 
         return true;
     }
 
     [UnmanagedCallersOnly]
-    private static unsafe void OnContactAddedCallback(nint context, nint character,
-        BodyID bodyID2, SubShapeID subShapeID2,
-        Vector3* contactPosition, // JPH_RVec3
-        Vector3* contactNormal,
-        CharacterContactSettings* ioSettings)
+    private static unsafe void OnContactAddedCallback(nint context, nint character, JPH_CharacterContact* pContact, CharacterContactSettings* ioSettings)
     {
         CharacterVirtual listener = DelegateProxies.GetUserData<CharacterVirtual>(context, out _);
 
         if (listener.OnContactAdded != null)
         {
+            CharacterContact contact = default;
+            contact.FromNative(pContact);
+
             CharacterContactSettings settings = *ioSettings;
-            listener.OnContactAdded(listener, bodyID2, subShapeID2, new RVector3(*contactPosition), *contactNormal, ref settings);
+            listener.OnContactAdded(listener, in contact, ref settings);
             *ioSettings = settings;
         }
     }
 
     [UnmanagedCallersOnly]
-    private static unsafe void OnContactPersistedCallback(nint context, nint character,
-        BodyID bodyID2, SubShapeID subShapeID2,
-        Vector3* contactPosition, // JPH_RVec3
-        Vector3* contactNormal,
-        CharacterContactSettings* ioSettings)
+    private static unsafe void OnContactPersistedCallback(nint context, nint character, JPH_CharacterContact* pContact, CharacterContactSettings* ioSettings)
     {
         CharacterVirtual listener = DelegateProxies.GetUserData<CharacterVirtual>(context, out _);
 
         if (listener.OnContactPersisted != null)
         {
+            CharacterContact contact = default;
+            contact.FromNative(pContact);
+
             CharacterContactSettings settings = *ioSettings;
-            listener.OnContactPersisted(listener, bodyID2, subShapeID2, new RVector3(*contactPosition), *contactNormal, ref settings);
+            listener.OnContactPersisted(listener, in contact, ref settings);
             *ioSettings = settings;
         }
     }
 
     [UnmanagedCallersOnly]
-    private static unsafe void OnContactRemovedCallback(nint context, nint character,
+    private static void OnContactRemovedCallback(nint context, nint character,
         BodyID bodyID2, SubShapeID subShapeID2)
     {
         CharacterVirtual listener = DelegateProxies.GetUserData<CharacterVirtual>(context, out _);
@@ -661,47 +615,34 @@ public sealed class CharacterVirtual : CharacterBase
     }
 
     [UnmanagedCallersOnly]
-    private static unsafe void OnCharacterContactAddedCallback(nint context, nint character,
-        nint otherCharacter,
-        SubShapeID subShapeID2,
-        Vector3* contactPosition, // JPH_RVec3
-        Vector3* contactNormal,
-        CharacterContactSettings* ioSettings)
+    private static unsafe void OnCharacterContactAddedCallback(nint context, nint character, JPH_CharacterContact* pContact, CharacterContactSettings* ioSettings)
     {
         CharacterVirtual listener = DelegateProxies.GetUserData<CharacterVirtual>(context, out _);
 
         if (listener.OnCharacterContactAdded != null)
         {
+            CharacterContact contact = default;
+            contact.FromNative(pContact);
+
             CharacterContactSettings settings = *ioSettings;
-            listener.OnCharacterContactAdded(listener,
-                GetObject(otherCharacter)!,
-                subShapeID2,
-                new RVector3(*contactPosition),
-                *contactNormal,
-                ref settings);
+            listener.OnCharacterContactAdded(GetObject(character)!, in contact, ref settings);
             *ioSettings = settings;
         }
     }
 
     [UnmanagedCallersOnly]
-    private static unsafe void OnCharacterContactPersistedCallback(nint context, nint character,
-        nint otherCharacter,
-        SubShapeID subShapeID2,
-        Vector3* contactPosition, // JPH_RVec3
-        Vector3* contactNormal,
-        CharacterContactSettings* ioSettings)
+    private static unsafe void OnCharacterContactPersistedCallback(nint context, nint character, JPH_CharacterContact* pContact, CharacterContactSettings* ioSettings)
     {
         CharacterVirtual listener = DelegateProxies.GetUserData<CharacterVirtual>(context, out _);
 
         if (listener.OnCharacterContactPersisted != null)
         {
+            CharacterContact contact = default;
+            contact.FromNative(pContact);
+
             CharacterContactSettings settings = *ioSettings;
-            listener.OnCharacterContactPersisted(listener,
-                GetObject(otherCharacter)!,
-                subShapeID2,
-                new RVector3(*contactPosition),
-                *contactNormal,
-                ref settings);
+
+            listener.OnCharacterContactPersisted(GetObject(character)!, in contact, ref settings);
             *ioSettings = settings;
         }
     }

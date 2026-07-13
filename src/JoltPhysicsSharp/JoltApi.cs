@@ -195,6 +195,11 @@ internal static unsafe partial class JoltApi
     [LibraryImport(LibName)]
     public static partial void JPH_SetAssertFailureHandler(delegate* unmanaged<byte*, byte*, byte*, uint, Bool8> callback);
 
+    [LibraryImport(LibName)]
+    public static partial void JPH_CollideShapeResult_FreeMembers(CollideShapeResult* result);
+    [LibraryImport(LibName)]
+    public static partial void JPH_CollisionEstimationResult_FreeMembers(in CollisionEstimationResult result);
+
     // JobSystem
 #pragma warning disable CS0649
     public struct JPH_JobSystemConfig
@@ -3171,7 +3176,7 @@ internal static unsafe partial class JoltApi
     [LibraryImport(LibName)]
     public static partial void JPH_CharacterVirtual_SetInnerBodyShape(nint character, nint shape);
 
-    public struct JPH_CharacterVirtualContact
+    public struct JPH_CharacterContact
     {
         public ulong hash;
         public BodyID bodyB;
@@ -3191,13 +3196,14 @@ internal static unsafe partial class JoltApi
         public Bool8 hadCollision;
         public Bool8 wasDiscarded;
         public Bool8 canPushCharacter;
+        public Bool8 isBackFacingContact;
     }
 
     [LibraryImport(LibName)]
     public static partial int JPH_CharacterVirtual_GetNumActiveContacts(nint character);
 
     [LibraryImport(LibName)]
-    public static partial void JPH_CharacterVirtual_GetActiveContact(nint character, int index, JPH_CharacterVirtualContact* result);
+    public static partial void JPH_CharacterVirtual_GetActiveContact(nint character, int index, JPH_CharacterContact* result);
 
     [LibraryImport(LibName)]
     [return: MarshalAs(UnmanagedType.U1)]
@@ -3214,13 +3220,13 @@ internal static unsafe partial class JoltApi
     public struct JPH_CharacterContactListener_Procs
     {
         public delegate* unmanaged<nint, nint, nint, Vector3*, Vector3*, void> OnAdjustBodyVelocity;
-        public delegate* unmanaged<nint, nint, BodyID, SubShapeID, Bool8> OnContactValidate;
-        public delegate* unmanaged<nint, nint, nint, SubShapeID, Bool8> OnCharacterContactValidate;
-        public delegate* unmanaged<nint, nint, BodyID, SubShapeID, Vector3*, Vector3*, CharacterContactSettings*, void> OnContactAdded;
-        public delegate* unmanaged<nint, nint, BodyID, SubShapeID, Vector3*, Vector3*, CharacterContactSettings*, void> OnContactPersisted;
+        public delegate* unmanaged<nint, nint, JPH_CharacterContact*, Bool8> OnContactValidate;
+        public delegate* unmanaged<nint, nint, JPH_CharacterContact*, Bool8> OnCharacterContactValidate;
+        public delegate* unmanaged<nint, nint, JPH_CharacterContact*, CharacterContactSettings*, void> OnContactAdded;
+        public delegate* unmanaged<nint, nint, JPH_CharacterContact*, CharacterContactSettings*, void> OnContactPersisted;
         public delegate* unmanaged<nint, nint, BodyID, SubShapeID, void> OnContactRemoved;
-        public delegate* unmanaged<nint, nint, nint, SubShapeID, Vector3*, Vector3*, CharacterContactSettings*, void> OnCharacterContactAdded;
-        public delegate* unmanaged<nint, nint, nint, SubShapeID, Vector3*, Vector3*, CharacterContactSettings*, void> OnCharacterContactPersisted;
+        public delegate* unmanaged<nint, nint, JPH_CharacterContact*, CharacterContactSettings*, void> OnCharacterContactAdded;
+        public delegate* unmanaged<nint, nint, JPH_CharacterContact*, CharacterContactSettings*, void> OnCharacterContactPersisted;
         public delegate* unmanaged<nint, nint, CharacterID, SubShapeID, void> OnCharacterContactRemoved;
         public delegate* unmanaged<nint, nint, BodyID, SubShapeID, Vector3*, Vector3*, Vector3*, nint, Vector3*, Vector3*, void> OnContactSolve;
         public delegate* unmanaged<nint, nint, nint, SubShapeID, Vector3*, Vector3*, Vector3*, nint, Vector3*, Vector3*, void> OnCharacterContactSolve;
